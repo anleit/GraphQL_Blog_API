@@ -1,11 +1,14 @@
 import request from'supertest';
 import { app, httpServer, server } from '../graphql/server';
 import mongoose from'mongoose';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const graphqlEndpoint = '/graphql';
 
 beforeAll(async () => {
-    await mongoose.connect('mongodb://127.0.0.1:27017/testdb');
+    await mongoose.connect(process.env.MONGO_URI_TEST);
 });
 
 afterAll(async () => {
