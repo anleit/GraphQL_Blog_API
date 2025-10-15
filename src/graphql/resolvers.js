@@ -17,7 +17,10 @@ export default {
         posts: async (_, __, { user }) => {
             if (user) {
                 return await Post.find({
-                    $or: [{ isPublic: true }, { author: user.id }]
+                    $or: [
+                        { isPublic: true }, 
+                        { author: user.id }
+                    ]
                 }).populate('author');
             }
             return await Post.find({ isPublic: true }).populate('author');
@@ -84,6 +87,8 @@ export default {
 
         addComment: async (_, { postId, content }, { user }) => {
             if (!user) throw new Error('Not authenticated');
+            const post = await Post.findById(postId);
+            if (!post) throw new Error('Post not found');
             const comment = await Comment.create({ content, author: user.id, post: postId });
             return comment.populate(['author', 'post']);
         }

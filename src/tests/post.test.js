@@ -240,7 +240,6 @@ describe('GraphQL Posts', () => {
             },
         });
         let id = resCreate.body.data.createPost.id;
-        console.log("El Id del post es: ", id)
         const mutation = `
             mutation UpdatePost($id: ID!, $input: UpdatePostInput!) {
                 updatePost(id: $id, input: $input) {
@@ -384,7 +383,6 @@ describe('GraphQL Posts', () => {
                 id: id,
             },
         });
-        console.log("response: ", res.body);
         expect(res.statusCode).toBe(200);
         expect(res.body.data.deletePost).toBe(true);
     });
@@ -404,9 +402,9 @@ describe('GraphQL Posts', () => {
             query: mutationCreate,
             variables: {
                 input: {
-                    title: "Title should not be deleted",
+                    title: "Title should not be deleted 2",
                     content: "Content should not be deleted",
-                    isPublic: true
+                    isPublic: false
                 },
             },
         });
@@ -491,4 +489,48 @@ describe('GraphQL Posts', () => {
         expect(res.body.errors[0].message.toLowerCase()).toBe('unauthorized')
     });
 
+    it('Should return all public posts', async () =>{
+        const query = `
+            query {
+                posts {
+                    id
+                    title
+                    isPublic
+                }
+            }
+        `;
+        const res = await request(httpServer)
+        .post(graphqlEndpoint)
+        .send({ query });
+        console.log(res.body.data.posts);
+        expect(res.statusCode).toBe(200);
+        expect(res.body.errors).toBeUndefined();
+        expect(res.body.data.posts).toBeInstanceOf(Array);
+    });
+
+    it("Should return all posts plus all of user's privated ones", async () => {
+        const query = `
+            query {
+                posts {
+                    id
+                    title
+                    isPublic
+                    author {
+                        id
+                        username
+                    }
+                }
+            }
+        `;
+        const res = await request(httpServer)
+        .post(graphqlEndpoint)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ query });
+        console.log(res.body.data.posts);
+        expect(res.statusCode).toBe(200);
+        expect(res.body.errors).toBeUndefined();
+        expect(res.body.data.posts).toBeInstanceOf(Array);
+    });
+
+    
 });

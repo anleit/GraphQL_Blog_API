@@ -114,7 +114,6 @@ describe('User Authentication', () => {
                 password: "wrongPassword",
             },
         });
-        console.log('Response: ', res.body);
         expect(res.statusCode).toBe(200);
         expect(res.body.errors).toBeDefined();
         expect(res.body.errors[0].message.toLowerCase()).toBe("invalid credentials");
@@ -141,7 +140,6 @@ describe('User Authentication', () => {
                 password: "Password",
             },
         });
-        console.log('Response: ', res.body);
         expect(res.statusCode).toBe(200);
         expect(res.body.errors).toBeDefined();
         expect(res.body.errors[0].message.toLowerCase()).toBe("invalid credentials");
