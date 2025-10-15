@@ -14,6 +14,6 @@ import mongoose from 'mongoose';
         type: String,
         required: true
     }
- });
+ }, { timestamps: true });
 
  export default mongoose.model('User', userSchema);
