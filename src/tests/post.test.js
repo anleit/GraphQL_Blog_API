@@ -37,6 +37,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+    await User.deleteMany({});
+    await Post.deleteMany({});
     await mongoose.connection.dropDatabase();
     await mongoose.connection.close();
     await server.stop();
@@ -53,6 +55,7 @@ describe('GraphQL Posts', () => {
                     user {
                         id
                         username
+                        email
                     }
                 }
             }
@@ -502,7 +505,6 @@ describe('GraphQL Posts', () => {
         const res = await request(httpServer)
         .post(graphqlEndpoint)
         .send({ query });
-        console.log(res.body.data.posts);
         expect(res.statusCode).toBe(200);
         expect(res.body.errors).toBeUndefined();
         expect(res.body.data.posts).toBeInstanceOf(Array);
@@ -526,11 +528,254 @@ describe('GraphQL Posts', () => {
         .post(graphqlEndpoint)
         .set('Authorization', `Bearer ${tokenA}`)
         .send({ query });
-        console.log(res.body.data.posts);
         expect(res.statusCode).toBe(200);
         expect(res.body.errors).toBeUndefined();
         expect(res.body.data.posts).toBeInstanceOf(Array);
     });
 
-    
+    it('Should allow an user to see their own post', async () => {
+        const mutationCreate = `
+            mutation CreatePost($input: PostInput!) {
+                createPost(input: $input) {
+                    id
+                }
+            }
+        `;
+        const resCreate = await request(httpServer)
+        .post(graphqlEndpoint)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ 
+            query: mutationCreate,
+            variables: {
+                input: {
+                    title: "Secret post from UserA",
+                    content: "Content",
+                    isPublic: false
+                },
+            },
+        });
+        let id = resCreate.body.data.createPost.id;
+        const query = `
+            query Post($id: ID!) {
+                post(id: $id) {
+                    id
+                    title
+                    isPublic
+                    author {
+                        id
+                        username
+                    }
+                }
+            }
+        `;
+        const res = await request(httpServer)
+        .post(graphqlEndpoint)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ query: query, variables: { id: id} });
+        expect(res.statusCode).toBe(200);
+        expect(res.body.errors).toBeUndefined();
+        expect(res.body.data.post.id).toBe(id);
+    });
+
+    it('Should allow anyone to see a public post', async () => {
+        const mutationCreate = `
+            mutation CreatePost($input: PostInput!) {
+                createPost(input: $input) {
+                    id
+                }
+            }
+        `;
+        const resCreate = await request(httpServer)
+        .post(graphqlEndpoint)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({ 
+            query: mutationCreate,
+            variables: {
+                input: {
+                    title: "New post from UserB",
+                    content: "Content from UserB",
+                    isPublic: true
+                },
+            },
+        });
+        let id = resCreate.body.data.createPost.id;
+        const query = `
+            query Post($id: ID!) {
+                post(id: $id) {
+                    id
+                    title
+                    isPublic
+                    author {
+                        id
+                        username
+                    }
+                }
+            }
+        `;
+        const res = await request(httpServer)
+        .post(graphqlEndpoint)
+        .send({ query: query, variables: { id: id} });
+        expect(res.statusCode).toBe(200);
+        expect(res.body.errors).toBeUndefined();
+        expect(res.body.data.post.id).toBe(id);
+    });
+
+    it('Should not allow an unauthenticated user to see another user\'s private post', async () => {
+        const mutationCreate = `
+            mutation CreatePost($input: PostInput!) {
+                createPost(input: $input) {
+                    id
+                }
+            }
+        `;
+        const resCreate = await request(httpServer)
+        .post(graphqlEndpoint)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({ 
+            query: mutationCreate,
+            variables: {
+                input: {
+                    title: "New post from UserB",
+                    content: "New content",
+                    isPublic: false
+                },
+            },
+        });
+        let id = resCreate.body.data.createPost.id;
+        const query = `
+            query Post($id: ID!) {
+                post(id: $id) {
+                    id
+                    title
+                    isPublic
+                    author {
+                        id
+                        username
+                    }
+                }
+            }
+        `;
+        const res = await request(httpServer)
+        .post(graphqlEndpoint)
+        .send({ query: query, variables: { id: id} });
+        expect(res.statusCode).toBe(200);
+        expect(res.body.errors).toBeDefined();
+        expect(res.body.errors[0].message.toLowerCase()).toBe("access denied");
+    });
+
+    it('Should not allow an user to see another user\'s private post', async () => {
+        const mutationCreate = `
+            mutation CreatePost($input: PostInput!) {
+                createPost(input: $input) {
+                    id
+                }
+            }
+        `;
+        const resCreate = await request(httpServer)
+        .post(graphqlEndpoint)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({ 
+            query: mutationCreate,
+            variables: {
+                input: {
+                    title: "The newest post from UserB",
+                    content: "New content",
+                    isPublic: false
+                },
+            },
+        });
+        let id = resCreate.body.data.createPost.id;
+        const query = `
+            query Post($id: ID!) {
+                post(id: $id) {
+                    id
+                    title
+                    isPublic
+                    author {
+                        id
+                        username
+                    }
+                }
+            }
+        `;
+        const res = await request(httpServer)
+        .post(graphqlEndpoint)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ query: query, variables: { id: id} });
+        expect(res.statusCode).toBe(200);
+        expect(res.body.errors).toBeDefined();
+        expect(res.body.errors[0].message.toLowerCase()).toBe("access denied");
+    });
+
+    it('Should not get a post that does not exist', async () => {
+        let id = new mongoose.Types.ObjectId();
+        const query = `
+            query Post($id: ID!) {
+                post(id: $id) {
+                    id
+                    title
+                    isPublic
+                    author {
+                        id
+                        username
+                    }
+                }
+            }
+        `;
+        const res = await request(httpServer)
+        .post(graphqlEndpoint)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ query: query, variables: { id: id} });
+        expect(res.statusCode).toBe(200);
+        expect(res.body.errors).toBeDefined();
+        expect(res.body.errors[0].message.toLowerCase()).toBe("post not found");
+    });
+
+    it('Should allow an user to see their own information', async () => {
+        const query = `
+            query Me {
+                me {
+                    id
+                    username
+                    email
+                    posts {
+                        title
+                    }
+                    createdAt
+                }
+            }
+        `;
+        const res = await request(httpServer)
+        .post(graphqlEndpoint)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ query }); 
+        console.log('Response: ', res.body.posts);
+        expect(res.statusCode).toBe(200);
+        expect(res.body.data.me.id).toBe(userA.id);
+        expect(res.body.data.me.username).toBe(userA.username);
+        expect(res.body.data.me.email).toBe(userA.email);
+    });
+
+    it('Should not allow an unauthenticated user to access information', async () => {
+        const query = `
+            query Me {
+                me {
+                    id
+                    username
+                    email
+                    posts {
+                        title
+                    }
+                    createdAt
+                }
+            }
+        `;
+        const res = await request(httpServer)
+        .post(graphqlEndpoint)
+        .send({ query }); 
+        console.log('Response: ', res.body.posts);
+        expect(res.statusCode).toBe(200);
+        expect(res.body.errors).toBeDefined();
+        expect(res.body.errors[0].message.toLowerCase()).toBe("not authenticated")
+    });
 });

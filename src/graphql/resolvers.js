@@ -35,6 +35,24 @@ export default {
             return post;
         },
     },
+    User: {
+        posts: async (parent) => {
+            return await Post.find({ author: parent.id });
+        },
+    },
+    Post: {
+        comments: async (parent) => {
+            return await Comment.find({ post: parent.id });
+        },
+    },
+    Comment: {
+        author: async (parent) => {
+            return await User.findById(parent.author);
+        },
+        post: async (parent) => {
+            return await Post.findById(parent.post);
+        },
+    },
     Mutation: {
         register: async (_, { username, email, password }) => {
             const existingUser = await User.findOne({ email });
@@ -89,6 +107,7 @@ export default {
             if (!user) throw new Error('Not authenticated');
             const post = await Post.findById(postId);
             if (!post) throw new Error('Post not found');
+            if (!post.isPublic) throw new Error('Action denied');
             const comment = await Comment.create({ content, author: user.id, post: postId });
             return comment.populate(['author', 'post']);
         }
