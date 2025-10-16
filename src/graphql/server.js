@@ -7,9 +7,28 @@ import cors from 'cors';
 import typeDefs from './typeDefs.js';
 import resolvers from './resolvers.js';
 import { getUserFromToken } from '../middleware/auth.js';
+import { useServer } from 'graphql-ws/use/ws';
+import { WebSocketServer } from 'ws';
 
 const app = express();
 const httpServer = http.createServer(app);
+
+const wsServer = new WebSocketServer({
+    server: httpServer,
+    path: '/graphql',
+});
+
+const serverCleanup = useServer(
+    {
+        schema: { typeDefs, resolvers },
+        context: async (ctx) => {
+            const token = ctx.connectionParams?.Authorization || '';
+            const user = await getUserFromToken(token);
+            return { user };
+        },
+    },
+    wsServer
+);
 
 const server = new ApolloServer({
     typeDefs,

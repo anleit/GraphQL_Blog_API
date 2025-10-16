@@ -26,6 +26,10 @@ const typeDefs = `#graphql
         token: String!
         user: User!
     }
+    type Subscription {
+        postAdded: Post
+        commentAdded(postId: ID!): Comment
+    }
     input PostInput {
         title: String!
         content: String!
@@ -47,7 +51,7 @@ const typeDefs = `#graphql
         createPost(input: PostInput!): Post!
         updatePost(id: ID!, input: UpdatePostInput!): Post!
         deletePost(id: ID!): Boolean!
-        addComment(postId: ID!, content: String!): Comment
+        addComment(postId: ID!, content: String!): Comment!   
     }
 `;
 

@@ -4,8 +4,11 @@ import Post from '../models/Post.js';
 import Comment from "../models/Comment.js";
 import User from "../models/User.js";
 import dotenv from "dotenv";
+import { PubSub } from "graphql-subscriptions";
 
 dotenv.config();
+
+const pubsub = new PubSub();
 
 export default {
     Query: {
@@ -81,7 +84,9 @@ export default {
                 author: user.id,
              });
             await post.save();
-            return post.populate('author');
+            await post.populate('author');
+            pubsub.publish('POST_ADDED', { postAdded: post });
+            return post;
         },
 
         updatePost: async (_, { id, input }, { user }) => {
@@ -109,7 +114,17 @@ export default {
             if (!post) throw new Error('Post not found');
             if (!post.isPublic) throw new Error('Action denied');
             const comment = await Comment.create({ content, author: user.id, post: postId });
-            return comment.populate(['author', 'post']);
+            await comment.populate(['author', 'post']);
+            pubsub.publish('COMMENT_ADDED', { commentAdded: comment, postId });
+            return comment;
         }
-    }
+    },
+    Subscription: {
+        postAdded: {
+            subscribe: () => pubsub.asyncIterator(['POST_ADDED']),
+        },
+        commentAdded: {
+            subscribe: (_, { postId }) => pubsub.asyncIterator(['COMMENT_ADDED']),
+        },
+    },
 };
